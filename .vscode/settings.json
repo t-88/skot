@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "compare": "c",
+        "type_traits": "c",
+        "stdio.h": "c",
+        "ctype.h": "c",
+        "stdlib.h": "c",
+        "aa.h": "c",
+        "lexer.h": "c",
+        "cstddef": "c",
+        "limits": "c",
+        "new": "c"
+    }
+}
