@@ -9,6 +9,7 @@
         "lexer.h": "c",
         "cstddef": "c",
         "limits": "c",
-        "new": "c"
+        "new": "c",
+        "assert.h": "c"
     }
 }

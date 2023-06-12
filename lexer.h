@@ -11,6 +11,9 @@
 #define MK_TOKEN(tknType,s,c) (Token) {.val = (Str) {.str=(s),.count=(c)} ,.type=(tknType)}
 #define NUM_OF_TOKENS 1000
 
+
+
+
 static char* lexed_file;
 
 typedef struct {
@@ -27,7 +30,9 @@ typedef enum TokenType {
     Identifier,
     Equal,
     BinaryOp,
-    StringVal
+    StringVal,
+    Opara, 
+    Cpara,
 } TokenType;
 typedef struct {
     Str val;
@@ -64,8 +69,15 @@ void token_print(Token tkn) {
     case StringVal:
         printf("StringVal");
     break;            
+    case Opara:
+        printf("Oprara");
+    break;            
+    case Cpara:
+        printf("Cprara");
+    break;            
+
     default:
-        assert(0 && "Unreachable");
+        assert(0 && "Unreachable in `token_print`");
     }
     printf(" " TOKEN_FMT "\n",TOKEN_ARG(tkn));
 }
@@ -110,8 +122,6 @@ char* lexer_read_file(const char* file_path) {
     return lexed_file;
 } 
 
-
-
 LexerTokens lexer_lex() {
     LexerTokens lex_tokens = {0};
     lex_tokens.tokens = malloc(sizeof(Token) * NUM_OF_TOKENS); 
@@ -119,7 +129,6 @@ LexerTokens lexer_lex() {
     int curr = -1;
 
     while(lexed_file[++curr] != '\0') {
-
         if(isspace(lexed_file[curr]) || lexed_file[curr] == '\n' || lexed_file[curr] == '\t') {
 
         } 
@@ -134,8 +143,15 @@ LexerTokens lexer_lex() {
             while(lexed_file[curr] != 0 && lexed_file[curr] != '"')
                 curr++;
             lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(StringVal,lexed_file + start,curr - start);
+            curr--;
         } 
-        else if(lexed_file[curr] == '+' || lexed_file[curr] == '-' || lexed_file[curr] == '*' || lexed_file[curr] == '/') 
+        else if(lexed_file[curr] == '(') {
+            lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Opara,lexed_file + curr,1);
+        }
+        else if(lexed_file[curr] == ')') {
+            lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Cpara,lexed_file + curr,1);
+        }
+        else if(lexed_file[curr] == '+' || lexed_file[curr] == '-' || lexed_file[curr] == '*' || lexed_file[curr] == '/' || lexed_file[curr] == '|' || lexed_file[curr] == '^' || lexed_file[curr] == '&' || lexed_file[curr] == '%' ) 
         {
             lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(BinaryOp,lexed_file + curr,1);
         } 
@@ -144,16 +160,21 @@ LexerTokens lexer_lex() {
             int start = curr;
             while(lexed_file[curr] != 0 && isalpha(lexed_file[curr]))
                 curr++;
-            lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Identifier,lexed_file + start,curr - start + 1);
+            lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Identifier,lexed_file + start,curr - start);
+            curr--;
         } 
         else if (isalnum(lexed_file[curr])) 
         {
             int start = curr;
             while(lexed_file[curr] != '\0' && isalnum(lexed_file[curr])) 
                 curr++;
-            lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(NumberVal,lexed_file + start ,curr - start + 1);
+            lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(NumberVal,lexed_file + start ,curr - start);
+            curr--;
         }
-        
+        else {
+            assert(0 && "[Error] char not recognized");
+        }
+        printf("-> %d\n",curr);
     }
 
     return lex_tokens;

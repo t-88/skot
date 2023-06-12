@@ -3,165 +3,136 @@
 #include <ctype.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <string.h>
 
+#include "state.h"
 #include "lexer.h"
+#include "parser.h"
+
+typedef enum { 
+    StringValue,
+    NumberValue,
+} RunTimeType;
+
+typedef struct {
+    RunTimeType type;
+    union  {
+        Str str;
+        double number;
+    } as;
+} RunTimeValue;
 
 
 
-size_t tokenIdx = 0;
-LexerTokens Ltokens;
-
-typedef struct AST AST;
-typedef struct AST_Elem AST_Elem;
+RunTimeValue interpreter_eval(AST* ast);
+RunTimeValue interpreter_eval_program(AST* ast); 
 
 
 
-
-typedef  struct AST {
-    enum type{
-        Program,
-        BinaryExp,
-        BooleanExp,
-        NumberLiteral,
-        StringLiteral,
-    } type;
-
-    union data{
-        struct binaryExpr{
-            AST* lhs;
-            AST* rhs;
-            Str op;
-        } binaryExpr;
-        struct booleanExpr{
-            AST* lhs;
-            AST* rhs;
-            Str op;
-        } booleanExpr;        
-        struct program {
-            AST_Elem* body;
-        } program;        
-        struct numberLiteral{
-            Str data;
-        } numberLiteral;
-        struct stringLiteral{
-            Str data;
-        } stringLiteral;    
-    } data;
-    
-    
-} AST;
-
-typedef struct AST_Elem {
-    AST* data;
-    AST_Elem* next;
-} AST_Elem;
-
-void astElem_append(AST_Elem** head, AST* data) {
-    AST_Elem** curr = head;
-    while ((*curr) != NULL)
-        curr = &(*curr)->next;
-    (*curr) = malloc(sizeof(AST_Elem));
-    (*curr)->next = NULL;
-    (*curr)->data = data;
+RunTimeValue interpreter_eval_program(AST* ast) { 
+    RunTimeValue lastEval;
+    for(AST_Elem* exp = ast->as.program.body; exp; exp = exp->next) {
+        lastEval = interpreter_eval(exp->data);
+    }
+    return lastEval;
 }
 
+RunTimeValue interpreter_eval_binary_expr(AST* ast) {
+    RunTimeValue lhs = interpreter_eval(ast->as.binaryExpr.lhs);
+    RunTimeValue rhs = interpreter_eval(ast->as.binaryExpr.rhs);
 
-void ast_print(AST* ast,int depth) {
+    RunTimeValue out = {0};
+
+        // double + double -> double 
+        // str + str -> str
+        // str + double -> error
+    if(rhs.type == StringValue && lhs.type == StringValue) {
+        switch (*ast->as.binaryExpr.op.str)
+        {
+            case '+':
+                Str string;
+                string.count =  lhs.as.str.count + rhs.as.str.count;
+                char* str = malloc(sizeof(char) * string.count);
+                memcpy(str,lhs.as.str.str,lhs.as.str.count);
+                memcpy(str + lhs.as.str.count,rhs.as.str.str,rhs.as.str.count);
+                string.str = str;
+                return (RunTimeValue) {.type = StringValue,.as.str=string };
+            break;
+            default:
+                assert(0 && "[Error] cant preforme more thant addition on strings\n");
+            break;
+        }
+    } else if (rhs.type == NumberValue && lhs.type == NumberValue) {
+        switch (*ast->as.binaryExpr.op.str)
+        {
+	     case '+':
+            return (RunTimeValue) {.type = NumberValue,.as.number = (lhs.as.number + rhs.as.number)};
+            break;
+            case '-' :
+                return (RunTimeValue) {.type = NumberValue,.as.number = (lhs.as.number + rhs.as.number)};
+            break;
+            case '*' :
+               return (RunTimeValue) {.type = NumberValue,.as.number = (lhs.as.number * rhs.as.number)};
+            break;
+            case '/' :
+                return (RunTimeValue) {.type = NumberValue,.as.number = (lhs.as.number / rhs.as.number)};
+            break;
+            case '&' :
+                return (RunTimeValue) {.type = NumberValue,.as.number = ((int)lhs.as.number & (int) rhs.as.number)};
+            break;
+            case '|' :
+                return (RunTimeValue) {.type = NumberValue,.as.number = ((int)lhs.as.number | (int)rhs.as.number)};
+            break;
+            case '^' :
+                return (RunTimeValue) {.type = NumberValue,.as.number = ((int)lhs.as.number ^ (int)rhs.as.number)};
+            break;
+            case '%' :
+                return (RunTimeValue) {.type = NumberValue,.as.number = ((int)lhs.as.number % (int)rhs.as.number)};
+            break;
+            default:
+                assert(0 && "[Error] Unreachable `interpreter_eval_binary_expr`");
+            break;
+        }
+    } else {
+        assert(0 && "[Error] cant preforme binary ops on differnt types\n");
+    }
+}
+
+RunTimeValue interpreter_eval(AST* ast) {
     switch (ast->type)
     {
         case Program:
-            AST_Elem* curr = ast->data.program.body;
-            printf("%*sProgram:\n",depth,"");
-            while (curr) {
-                ast_print(curr->data,depth + 1);
-                curr = curr->next;
-            }
+            return interpreter_eval_program(ast);
         break;
         case BinaryExp:
-            printf("%*sBinaryExp:\n",depth,"");
-            printf("%*sOp:"STR_FMT"\n",depth + 1,"",STR_ARG(ast->data.binaryExpr.op));
-            ast_print(ast->data.binaryExpr.lhs,depth + 1);
-            ast_print(ast->data.binaryExpr.rhs,depth + 1);
+            return interpreter_eval_binary_expr(ast);
         break;
         case NumberLiteral:
-            printf("%*sNumberLiteral:\n",depth,"");
-            printf("%*svalue:"STR_FMT"\n",depth+1,"",STR_ARG(ast->data.numberLiteral.data));
+            RunTimeValue out = {0};
+            out.type = NumberValue;
+            out.as.number = strtod(ast->as.numberLiteral.data.str,NULL);
+            return out;
         break;
         case StringLiteral:
-            printf("%*sStringLiteral:\n",depth,"");
-            printf("%*svalue:"STR_FMT"\n",depth+1,"",STR_ARG(ast->data.numberLiteral.data));
+            return (RunTimeValue) {.type = StringValue,.as.str = ast->as.stringLiteral.data};
         break;
-    
     default:
-        assert(0 && "[Error] Unreachable `ast_print`\n");
+        assert(0 && "[Error] Unreachable `interpreter_eval`");
     }
+    return (RunTimeValue) {0};
 }
-
-AST* parser_parse_primary();
-AST* parser_parse_additive();
-AST* parser_parse_multiplicative();
-AST* parser_parse() {
-    AST* program = malloc(sizeof(AST));
-    program->type = Program;
-    while (tokenIdx < Ltokens.count) {
-        astElem_append(&program->data.program.body,parser_parse_additive());
-        tokenIdx++;
-    }
-    return program;
-}
-AST* parser_parse_additive() { 
-    AST* lhs = parser_parse_multiplicative();
-    if(tokenIdx < Ltokens.count && (*Ltokens.tokens[tokenIdx].val.str == '+' || *Ltokens.tokens[tokenIdx].val.str == '-')) {
-        Str op = Ltokens.tokens[tokenIdx].val;
-        tokenIdx++;
-        AST* rhs = parser_parse_additive();
-
-
-        AST* ast = malloc(sizeof(AST));
-        ast->type = BinaryExp;
-        ast->data.binaryExpr.lhs =  lhs; 
-        ast->data.binaryExpr.rhs =  rhs; 
-        ast->data.binaryExpr.op =  op; 
-        return ast; 
-    }
-
-    return lhs;
-}
-AST* parser_parse_multiplicative() { 
-    AST* lhs = parser_parse_primary();
-    if(tokenIdx < Ltokens.count && (*Ltokens.tokens[tokenIdx].val.str == '*' || *Ltokens.tokens[tokenIdx].val.str == '/')) {
-        Str op = Ltokens.tokens[tokenIdx].val;
-        tokenIdx++;
-        AST* rhs = parser_parse_multiplicative();
-
-        AST* ast = malloc(sizeof(AST));
-        ast->type = BinaryExp;
-        ast->data.binaryExpr.lhs =  lhs; 
-        ast->data.binaryExpr.rhs =  rhs; 
-        ast->data.binaryExpr.op =  op; 
-        return ast; 
-    }
-
-    return lhs;
-}
-
-AST* parser_parse_primary() {
-    Token tkn = Ltokens.tokens[tokenIdx]; 
-    tokenIdx++;
-    if(tkn.type == NumberVal) {
-        AST* ast = malloc(sizeof(AST));
-        ast->type = NumberLiteral;
-        ast->data.numberLiteral.data =  tkn.val; 
-        return ast;
-    } else if(tkn.type == StringVal) 
+void  runtime_print(RunTimeValue runtime) {
+    switch (runtime.type)
     {
-        AST* ast = malloc(sizeof(AST));
-        ast->type = StringLiteral;
-        ast->data.stringLiteral.data =  tkn.val; 
-        return ast;
-    } else {
-        token_print(tkn);
-        assert(0 && "Unreachable `parser_parse_primary`");
+        case StringValue:
+            str_print(runtime.as.str);
+        break;
+        case NumberValue:
+           	printf("%f\n",runtime.as.number);
+        break;
+    default:
+        assert(0 && "[Error] Unreachable `runtime_print`");
+        break;
     }
 }
 
@@ -169,14 +140,21 @@ AST* parser_parse_primary() {
 int main(void) {
     char * file = lexer_read_file("main.skt");
     Ltokens = lexer_lex();
-
-
-    // for(size_t i = 0; i < Ltokens.count; i++) {
-    //     token_print(Ltokens.tokens[i]);
-    // }
+    
+    for(int i = 0 ; i  < Ltokens.count; i++) {
+        token_print(Ltokens.tokens[i]);
+    }
+    printf("->\n");
+    
+    
     AST* program =  parser_parse();
     ast_print(program,0);
+
     
+
+    printf("--------------------\n");
+        runtime_print(interpreter_eval(program));
+    printf("--------------------\n");
 
     return 0;
 }
