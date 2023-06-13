@@ -10,6 +10,12 @@
         "cstddef": "c",
         "limits": "c",
         "new": "c",
-        "assert.h": "c"
+        "assert.h": "c",
+        "parser.h": "c",
+        "string.h": "c",
+        "state.h": "c",
+        "pphat.h": "c",
+        "pphat_runtime.h": "c",
+        "str.h": "c"
     }
 }

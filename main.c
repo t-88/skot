@@ -8,38 +8,32 @@
 #include "state.h"
 #include "lexer.h"
 #include "parser.h"
-
-typedef enum { 
-    StringValue,
-    NumberValue,
-} RunTimeType;
-
-typedef struct {
-    RunTimeType type;
-    union  {
-        Str str;
-        double number;
-    } as;
-} RunTimeValue;
+#include "runtime.h"
+#include "pphat.h"
+#include "str.h"
 
 
 
-RunTimeValue interpreter_eval(AST* ast);
-RunTimeValue interpreter_eval_program(AST* ast); 
 
 
 
-RunTimeValue interpreter_eval_program(AST* ast) { 
+
+RunTimeValue interpreter_eval(AST* ast,Env* env);
+RunTimeValue interpreter_eval_program(AST* ast,Env* env); 
+RunTimeValue interpreter_eval_var_declaration(AST* ast,Env* env); 
+
+
+
+RunTimeValue interpreter_eval_program(AST* ast,Env* env) { 
     RunTimeValue lastEval;
     for(AST_Elem* exp = ast->as.program.body; exp; exp = exp->next) {
-        lastEval = interpreter_eval(exp->data);
+        lastEval = interpreter_eval(exp->data,env);
     }
     return lastEval;
 }
-
-RunTimeValue interpreter_eval_binary_expr(AST* ast) {
-    RunTimeValue lhs = interpreter_eval(ast->as.binaryExpr.lhs);
-    RunTimeValue rhs = interpreter_eval(ast->as.binaryExpr.rhs);
+RunTimeValue interpreter_eval_binary_expr(AST* ast,Env* env) {
+    RunTimeValue lhs = interpreter_eval(ast->as.binaryExpr.lhs,env);
+    RunTimeValue rhs = interpreter_eval(ast->as.binaryExpr.rhs,env);
 
     RunTimeValue out = {0};
 
@@ -97,15 +91,31 @@ RunTimeValue interpreter_eval_binary_expr(AST* ast) {
         assert(0 && "[Error] cant preforme binary ops on differnt types\n");
     }
 }
+RunTimeValue interpreter_eval_var_declaration(AST* ast,Env* env) {
+    RunTimeValue value = interpreter_eval(ast->as.varDeclaration.value,env);
 
-RunTimeValue interpreter_eval(AST* ast) {
+    env_declare_variable(env,str_get_charp(ast->as.varDeclaration.name),value);
+    return value;
+}
+
+
+RunTimeValue interpreter_eval_var_assignment(AST* ast,Env* env) { 
+    RunTimeValue value = interpreter_eval(ast->as.varAssignment.value,env);
+    env_assing_variable(env,str_get_charp(ast->as.varDeclaration.name),value);
+    return value;
+}
+
+RunTimeValue interpreter_eval(AST* ast,Env* env) {
     switch (ast->type)
     {
         case Program:
-            return interpreter_eval_program(ast);
+            return interpreter_eval_program(ast,env);
         break;
         case BinaryExp:
-            return interpreter_eval_binary_expr(ast);
+            return interpreter_eval_binary_expr(ast,env);
+        break;
+        case VarDeclarationExpr:
+            return interpreter_eval_var_declaration(ast,env);
         break;
         case NumberLiteral:
             RunTimeValue out = {0};
@@ -116,35 +126,33 @@ RunTimeValue interpreter_eval(AST* ast) {
         case StringLiteral:
             return (RunTimeValue) {.type = StringValue,.as.str = ast->as.stringLiteral.data};
         break;
+        case IdentifierLiteral:
+            return env_get_variable(env,str_get_charp(ast->as.identifierLiteral.name));
+        break;        
+        case varAssignmentExpr:
+            return interpreter_eval_var_assignment(ast,env);
+        break;        
     default:
-        assert(0 && "[Error] Unreachable `interpreter_eval`");
+        assert(0 && "Unreachable `interpreter_eval`");
     }
     return (RunTimeValue) {0};
 }
-void  runtime_print(RunTimeValue runtime) {
-    switch (runtime.type)
-    {
-        case StringValue:
-            str_print(runtime.as.str);
-        break;
-        case NumberValue:
-           	printf("%f\n",runtime.as.number);
-        break;
-    default:
-        assert(0 && "[Error] Unreachable `runtime_print`");
-        break;
-    }
-}
+
+
 
 
 int main(void) {
-    char * file = lexer_read_file("main.skt");
+    lexer_init("main.skt");
+    char * file = lexer_read_file();
+    
+    globaEnv.parent = NULL;
+    globaEnv.vars = pphat_create_runtime();
+
     Ltokens = lexer_lex();
     
-    for(int i = 0 ; i  < Ltokens.count; i++) {
-        token_print(Ltokens.tokens[i]);
-    }
-    printf("->\n");
+    // for(int i = 0 ; i  < Ltokens.count; i++) {
+    //     token_print(Ltokens.tokens[i]);
+    // }
     
     
     AST* program =  parser_parse();
@@ -153,8 +161,11 @@ int main(void) {
     
 
     printf("--------------------\n");
-        runtime_print(interpreter_eval(program));
+        runtime_print(interpreter_eval(program,&globaEnv));
     printf("--------------------\n");
+
+    printf("global variables:s\n");
+    pphat_print_runtime(globaEnv.vars);
 
     return 0;
 }

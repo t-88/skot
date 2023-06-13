@@ -1,7 +1,8 @@
 #ifndef LEXER_H_
 #define LEXER_H_
 #include <stdio.h>
-
+#include "pphat.h"
+#include "str.h"
 
 #define STR_FMT "%.*s" 
 #define STR_ARG(token) (int)token.count,  token.str
@@ -14,12 +15,10 @@
 
 
 
-static char* lexed_file;
 
-typedef struct {
-    const char* str;
-    size_t count; 
-} Str;
+static char* lexed_file;
+static size_t file_size;
+static PpHat* reserved_keywords;
 
 
 
@@ -33,7 +32,13 @@ typedef enum TokenType {
     StringVal,
     Opara, 
     Cpara,
+    VarDeclaration,
+    SemiColon,
+    Eof,
 } TokenType;
+
+
+
 typedef struct {
     Str val;
     TokenType type;
@@ -45,39 +50,21 @@ typedef struct {
 } LexerTokens;
 
 
-void lexer_set_file(char* file) {
-    lexed_file = file;
-}
-
-
 
 void token_print(Token tkn) {
     printf("Token: ");
     switch (tkn.type) {
-    case NumberVal:
-        printf("NumberVal");
-    break;
-    case Identifier:
-        printf("Identifier");
-    break;    
-    case Equal:
-        printf("Equal");
-    break;   
-    case BinaryOp:
-        printf("BinaryOp");
-    break;            
-    case StringVal:
-        printf("StringVal");
-    break;            
-    case Opara:
-        printf("Oprara");
-    break;            
-    case Cpara:
-        printf("Cprara");
-    break;            
-
-    default:
-        assert(0 && "Unreachable in `token_print`");
+    case NumberVal:printf("NumberVal");break;
+        case Identifier:printf("Identifier");break;    
+        case Equal:printf("Equal");break;   
+        case BinaryOp:printf("BinaryOp");break;            
+        case StringVal:printf("StringVal");break;            
+        case Opara:printf("Oprara");break;            
+        case Cpara: printf("Cprara"); break;            
+        case VarDeclaration: printf("VarDeclaration"); break;            
+        case SemiColon: printf("SemiColon"); break;            
+        case Eof: printf("Eof"); break;            
+        default: assert(0 && "Unreachable in `token_print`");
     }
     printf(" " TOKEN_FMT "\n",TOKEN_ARG(tkn));
 }
@@ -85,10 +72,20 @@ void str_print(Str str) {
     printf(STR_FMT"\n",STR_ARG(str));
 }
 
+char* lexer_init(char* file_path) {
+    lexed_file = file_path;
+    reserved_keywords = pphat_create();
 
-char* lexer_read_file(const char* file_path) {
-    lexed_file = NULL;
-    FILE *f = fopen(file_path,"rb");
+    pphat_insert(&reserved_keywords,"let",VarDeclaration);
+}
+
+char* lexer_free() { 
+    pphat_free(reserved_keywords);
+}
+
+
+char* lexer_read_file() {
+    FILE *f = fopen(lexed_file,"rb");
     if(f == NULL) { 
         printf("[Error] could not open file\n");
         exit(1);
@@ -99,8 +96,8 @@ char* lexer_read_file(const char* file_path) {
         free(f);
         exit(1);
     }
-    size_t fs = ftell(f);
-    if(fs == -1) {
+    file_size = ftell(f);
+    if(file_size == -1) {
         printf("[Error] could not read file using 'ftell'\n");
         free(f);
         exit(1);
@@ -111,8 +108,8 @@ char* lexer_read_file(const char* file_path) {
         free(f);
         exit(1);
     }
-    lexed_file =  malloc(sizeof(char) *fs);// ARENA_ALLOC(*lexer_arena,char,fs);
-    res = fread(lexed_file,fs,1,f);
+    lexed_file =  malloc(sizeof(char) *file_size);// ARENA_ALLOC(*lexer_arena,char,fs);
+    res = fread(lexed_file,file_size,1,f);
     if(res == -1) {
         free(f);
         free(lexed_file); 
@@ -125,17 +122,19 @@ char* lexer_read_file(const char* file_path) {
 LexerTokens lexer_lex() {
     LexerTokens lex_tokens = {0};
     lex_tokens.tokens = malloc(sizeof(Token) * NUM_OF_TOKENS); 
-
     int curr = -1;
-
-    while(lexed_file[++curr] != '\0') {
+    while(++curr != file_size) {
+        // printf("%.*s %d %lu\n" ,1,lexed_file + curr,curr,file_size);
         if(isspace(lexed_file[curr]) || lexed_file[curr] == '\n' || lexed_file[curr] == '\t') {
-
+            
+        }
+         
+        else if(lexed_file[curr] == '=')  {
+            lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Equal,lexed_file + curr,1);
         } 
-        else if(lexed_file[curr] == '=') 
-        {
-            lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Equal,lexed_file,1);
-        } 
+        else if(lexed_file[curr] == ';')  {
+            lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(SemiColon,lexed_file + curr,1);
+        }
         else if(lexed_file[curr] == '"') 
         {
             curr++;
@@ -158,24 +157,34 @@ LexerTokens lexer_lex() {
         else if(isalpha(lexed_file[curr])) 
         {
             int start = curr;
-            while(lexed_file[curr] != 0 && isalpha(lexed_file[curr]))
+            while(lexed_file[curr] != '\0' && isalpha(lexed_file[curr]))
                 curr++;
-            lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Identifier,lexed_file + start,curr - start);
+            
+
+            Str str  = (Str) {.str =  lexed_file + start,.count =  curr - start};
+            int fromTable = pphat_get(reserved_keywords,str_get_charp(str));
+            if(fromTable == 0) {
+                lex_tokens.tokens[lex_tokens.count++] = (Token){.type = Identifier,.val = str};
+            } else  {
+                lex_tokens.tokens[lex_tokens.count++] = (Token){.type = fromTable,.val = str};
+            }
             curr--;
         } 
-        else if (isalnum(lexed_file[curr])) 
+        else if (isdigit(lexed_file[curr])) 
         {
             int start = curr;
-            while(lexed_file[curr] != '\0' && isalnum(lexed_file[curr])) 
+            while(lexed_file[curr] != '\0' && isdigit(lexed_file[curr])) 
                 curr++;
             lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(NumberVal,lexed_file + start ,curr - start);
             curr--;
         }
         else {
+            printf("`%.*s` in %d\n",1,lexed_file + curr ,curr);
             assert(0 && "[Error] char not recognized");
         }
-        printf("-> %d\n",curr);
+
     }
+    lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Eof,"eof",3);
 
     return lex_tokens;
 }
