@@ -4,9 +4,6 @@
 #include "pphat.h"
 #include "str.h"
 
-#define STR_FMT "%.*s" 
-#define STR_ARG(token) (int)token.count,  token.str
-
 #define TOKEN_FMT STR_FMT
 #define TOKEN_ARG(token) (int)token.val.count,  token.val.str
 #define MK_TOKEN(tknType,s,c) (Token) {.val = (Str) {.str=(s),.count=(c)} ,.type=(tknType)}
@@ -22,8 +19,6 @@ static PpHat* reserved_keywords;
 
 
 
-
-
 typedef enum TokenType {
     NumberVal,
     Identifier,
@@ -34,6 +29,7 @@ typedef enum TokenType {
     Cpara,
     VarDeclaration,
     SemiColon,
+    Token_Comparation,
     Eof,
 } TokenType;
 
@@ -63,25 +59,19 @@ void token_print(Token tkn) {
         case Cpara: printf("Cprara"); break;            
         case VarDeclaration: printf("VarDeclaration"); break;            
         case SemiColon: printf("SemiColon"); break;            
+        case Token_Comparation: printf("Token_Comparation"); break;            
         case Eof: printf("Eof"); break;            
         default: assert(0 && "Unreachable in `token_print`");
     }
-    printf(" " TOKEN_FMT "\n",TOKEN_ARG(tkn));
+    printf(" ");
+    str_print(tkn.val);
 }
-void str_print(Str str) {
-    printf(STR_FMT"\n",STR_ARG(str));
-}
-
-char* lexer_init(char* file_path) {
-    lexed_file = file_path;
-    reserved_keywords = pphat_create();
-
-    pphat_insert(&reserved_keywords,"let",VarDeclaration);
-}
-
+    
 char* lexer_free() { 
     pphat_free(reserved_keywords);
 }
+
+
 
 
 char* lexer_read_file() {
@@ -119,18 +109,31 @@ char* lexer_read_file() {
     return lexed_file;
 } 
 
+
+void lexer_init(char* file_path) {
+    lexed_file = file_path;
+    reserved_keywords = pphat_create();
+    pphat_insert(&reserved_keywords,"let",VarDeclaration);
+}
+
 LexerTokens lexer_lex() {
     LexerTokens lex_tokens = {0};
     lex_tokens.tokens = malloc(sizeof(Token) * NUM_OF_TOKENS); 
     int curr = -1;
     while(++curr != file_size) {
         // printf("%.*s %d %lu\n" ,1,lexed_file + curr,curr,file_size);
-        if(isspace(lexed_file[curr]) || lexed_file[curr] == '\n' || lexed_file[curr] == '\t') {
-            
+        if(isspace(lexed_file[curr]) || lexed_file[curr] == '\n' || lexed_file[curr] == '\t') {}
+        else if(lexed_file[curr] == '=')  { 
+                lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Equal,lexed_file + curr,1);
         }
-         
-        else if(lexed_file[curr] == '=')  {
-            lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Equal,lexed_file + curr,1);
+        else if(lexed_file[curr] == '<' || lexed_file[curr] == '>')  {
+            if(lexed_file[curr + 1] == '=') {
+                lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Token_Comparation,lexed_file + curr,2);
+                curr++;
+            } else {
+
+                lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Token_Comparation,lexed_file + curr,1);
+            }
         } 
         else if(lexed_file[curr] == ';')  {
             lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(SemiColon,lexed_file + curr,1);
@@ -166,6 +169,7 @@ LexerTokens lexer_lex() {
             if(fromTable == 0) {
                 lex_tokens.tokens[lex_tokens.count++] = (Token){.type = Identifier,.val = str};
             } else  {
+            printf("%d\n",fromTable);
                 lex_tokens.tokens[lex_tokens.count++] = (Token){.type = fromTable,.val = str};
             }
             curr--;

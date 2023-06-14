@@ -16,6 +16,8 @@
         "state.h": "c",
         "pphat.h": "c",
         "pphat_runtime.h": "c",
-        "str.h": "c"
+        "str.h": "c",
+        "runtime.h": "c",
+        "interpreter.h": "c"
     }
 }

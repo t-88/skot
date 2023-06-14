@@ -17,7 +17,7 @@ typedef  struct AST {
         StringLiteral,
         VarDeclarationExpr,
         IdentifierLiteral,
-        varAssignmentExpr,
+        VarAssignmentExpr,
     } type;
 
     union data{
@@ -91,10 +91,16 @@ void ast_print(AST* ast,int depth) {
         break;
         case BinaryExp:
             printf("%*sBinaryExp:\n",depth,"");
-            printf("%*sOp:"STR_FMT"\n",depth + 1,"",STR_ARG(ast->as.binaryExpr.op));
+            printf("%*sOp: "STR_FMT"\n",depth + 1,"",STR_ARG(ast->as.binaryExpr.op));
             ast_print(ast->as.binaryExpr.lhs,depth + 1);
             ast_print(ast->as.binaryExpr.rhs,depth + 1);
         break;
+        case BooleanExp:
+            printf("%*sBooleanExp:\n",depth,"");
+            printf("%*sOp: "STR_FMT"\n",depth + 1,"",STR_ARG(ast->as.booleanExpr.op));
+            ast_print(ast->as.booleanExpr.lhs,depth + 1);
+            ast_print(ast->as.booleanExpr.rhs,depth + 1);
+        break;        
         case NumberLiteral:
             printf("%*sNumberLiteral:\n",depth,"");
             printf("%*svalue: "STR_FMT"\n",depth+1,"",STR_ARG(ast->as.numberLiteral.data));
@@ -113,8 +119,8 @@ void ast_print(AST* ast,int depth) {
             printf("%*svar: "STR_FMT"\n",depth+1,"",STR_ARG(ast->as.varDeclaration.name));
             ast_print(ast->as.varDeclaration.value,depth + 1);
         break;    
-        case varAssignmentExpr:
-            printf("%*svarAssignmentExpr:\n",depth,"");
+        case VarAssignmentExpr:
+            printf("%*sVarAssignmentExpr:\n",depth,"");
             printf("%*svar: "STR_FMT"\n",depth+1,"",STR_ARG(ast->as.varAssignment.name));
             ast_print(ast->as.varAssignment.value,depth + 1);
         break;    
@@ -124,10 +130,11 @@ void ast_print(AST* ast,int depth) {
 }
 
 AST* parser_parse_primary();
-AST* parser_parse_additive();
-AST* parser_parse_multiplicative();
-AST* parser_parse_boolean();
 AST* parser_parse_para();
+AST* parser_parse_multiplicative();
+AST* parser_parse_additive();
+AST* parser_parse_boolean();
+AST* parser_parse_boolean_expr();
 AST* parser_parse_var_declaration();
 AST* parser_parse_var_assignment();
 
@@ -152,20 +159,19 @@ AST* parser_parse() {
             astElem_append(&ast->as.program.body,parser_parse_var_assignment());
             expect(SemiColon);
         }
-        // tokenIdx++;
     }
     return ast;
 }
 
 
 AST* parser_parse_var_assignment() {
-    AST* lhs = parser_parse_additive();
+    AST* lhs = parser_parse_boolean_expr();
     if(tokenIdx < Ltokens.count && Ltokens.tokens[tokenIdx].type == Equal)  {
         tokenIdx++;
         AST* rhs = parser_parse_var_assignment();
 
         AST* varAssig = malloc(sizeof(AST));
-        varAssig->type = varAssignmentExpr;
+        varAssig->type = VarAssignmentExpr;
         varAssig->as.varDeclaration.name = lhs->as.identifierLiteral.name;
         varAssig->as.varDeclaration.value = rhs;
         return varAssig;
@@ -187,6 +193,23 @@ AST* parser_parse_var_declaration() {
 }
 
 
+AST* parser_parse_boolean_expr() { 
+    AST* lhs = parser_parse_additive();
+    if(Ltokens.tokens[tokenIdx].type == Token_Comparation) {
+        Str op = Ltokens.tokens[tokenIdx].val;
+        tokenIdx++;
+        AST* rhs = parser_parse_boolean_expr();
+        
+        AST* comparationOp = malloc(sizeof(AST));
+        comparationOp->type = BooleanExp;
+        comparationOp->as.booleanExpr.op = op;
+        comparationOp->as.booleanExpr.rhs = rhs;
+        comparationOp->as.booleanExpr.lhs = lhs;
+
+        return comparationOp;
+    }
+    return lhs;
+}
 
 AST* parser_parse_para() {
     if(tokenIdx < Ltokens.count && (*Ltokens.tokens[tokenIdx].val.str == '(')) { 
