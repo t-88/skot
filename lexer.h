@@ -37,7 +37,8 @@ typedef enum TokenType {
     Token_CsqrPra,
     Token_Output,
     Token_Range,
-    Token_For_keyword
+    Token_For_keyword,
+    Token_While_keyword
 } TokenType;
 
 
@@ -74,6 +75,7 @@ void token_print(Token tkn) {
         case Token_CsqrPra: printf("Token_CsqrPra"); break;            
         case Token_Output: printf("Token_Output"); break;            
         case Token_For_keyword: printf("Token_For_keyword"); break;            
+        case Token_While_keyword: printf("Token_While_keyword"); break;            
         
         case Token_Range: printf("Token_Range"); break;            
         default: assert(0 && "Unreachable in `token_print`");
@@ -133,6 +135,8 @@ void lexer_init(char* file_path) {
     pphat_insert(&reserved_keywords,"else",Token_Else_Keyword);
     pphat_insert(&reserved_keywords,"for",Token_For_keyword);
     pphat_insert(&reserved_keywords,"output",Token_Output);
+    pphat_insert(&reserved_keywords,"while",Token_While_keyword);
+    
     
 }
 

@@ -1,7 +1,15 @@
-let a = 0;
-for(1..10) {
+let a = 1;
+for(0..3) {
+    if(a == 1) {
+        output(a);
+    } else if (a == 2) {
+        output(a);
+    } 
+    else {
+        output(a);
+    }         
     a = a + 1;
-    output("for loop "+ "!");
-    output(a);
 }
-    
+while(1 == 1) {
+    output("turring complete " + ":O");
+}

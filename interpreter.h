@@ -14,6 +14,7 @@ RunTimeValue interpreter_eval_var_declaration(AST* ast,Env* env);
 RunTimeValue interpreter_eval_if_statment(AST* ast,Env* env); 
 RunTimeValue interpreter_eval_boolean_expr(AST* ast,Env* env); 
 RunTimeValue interpreter_eval_for_statment(AST* ast,Env* env); 
+RunTimeValue interpreter_eval_while_statment(AST* ast,Env* env); 
 
 
 RunTimeValue interpreter_eval_program(AST* ast,Env* env) { 
@@ -160,6 +161,13 @@ RunTimeValue interpreter_eval_for_statment(AST* ast,Env* env) {
     }
     return (RunTimeValue) {.as.number = 0, .type = Noth};
 }
+RunTimeValue interpreter_eval_while_statment(AST* ast,Env* env) {  
+    RunTimeValue cond = interpreter_eval(ast->as.whileStatement.cond,env);
+    while(cond.as.boolean) {
+        interpreter_eval(ast->as.whileStatement.block,env);
+    }
+    return (RunTimeValue) {.as.number = 0, .type = Noth};
+}
 
 
 
@@ -205,7 +213,10 @@ RunTimeValue interpreter_eval(AST* ast,Env* env) {
         break;           
         case ForStatement:
             return interpreter_eval_for_statment(ast,env);
-        break;           
+        break;     
+        case WhileStatement:
+            return interpreter_eval_while_statment(ast,env);
+        break;                   
         default:
             assert(0 && "Unreachable `interpreter_eval`");
         break;

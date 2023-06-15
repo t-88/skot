@@ -1,29 +1,31 @@
 # Skot 
 personal project programming lang   
-its not useable so dont use it in anything real.  
+there is ifs , whiles, fors and memory looks to me like skot is turing complete.
 
+## Memory
+-   its not finished, no memory management at all :)
+-   it dosnt do anything about memory once it takes it there is no coming back its not a bug its a feature.    
 ## How to use
-it dosnt do anything about memory once it takes it there is no coming back its not a bug its a feature.    
+
 write ur code in main.skt and 
 ```
     ./run.sh
 ```
 example of code:   
 ```
-    let a = 1+1+1;
+let a = 1;
+for(0..3) {
     if(a == 1) {
-        a = 420;
         output(a);
     } else if (a == 2) {
-        a = 69;
         output(a);
     } 
     else {
-        a = 96;
         output(a);
-    } 
+    }         
+    a = a + 1;
+}
+while(1 == 1) {
+    output("turring complete " + ":O");
+}
 ```
-
-
-## Sreenshots
-![advaned calculator](./screenshots/1.png)

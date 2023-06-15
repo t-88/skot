@@ -46,10 +46,10 @@ int main(void) {
         interpreter_eval(program,&globaEnv);
     printf("============================ \n");
 
-    // printf("Global variables: \n");
-    // printf("---------------------------- \n");
-    // pphat_print_runtime(globaEnv.vars);
-    // printf("---------------------------- \n");
+    printf("Global variables: \n");
+    printf("---------------------------- \n");
+    pphat_print_runtime(globaEnv.vars);
+    printf("---------------------------- \n");
 
     return 0;
 }

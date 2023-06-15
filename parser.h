@@ -22,6 +22,7 @@ typedef  struct AST {
         BlockExpr,
         OutputStatment,
         ForStatement,
+        WhileStatement,
     } type;
 
     union data{
@@ -66,6 +67,10 @@ typedef  struct AST {
             AST_Elem* else_if_blocks;
             AST* else_block;
         } ifStatement;    
+        struct whileStatement{
+            AST* cond;
+            AST* block;
+        } whileStatement;            
         struct forStatement{
             AST* start;
             AST* end;
@@ -167,7 +172,12 @@ void ast_print(AST* ast,int depth) {
             ast_print(ast->as.forStatement.start,depth + 1);
             ast_print(ast->as.forStatement.end,depth + 1);
             ast_print(ast->as.forStatement.block,depth + 1);
-        break;        
+        break;   
+        case WhileStatement:
+            printf("%*sWhileStatement:\n",depth,"");
+            ast_print(ast->as.whileStatement.cond,depth + 1);
+            ast_print(ast->as.whileStatement.block,depth + 1);
+        break;         
         case OutputStatment:
             printf("%*sOutputStatment:\n",depth,"");
             ast_print(ast->as.outputStatment.expr,depth + 1);
@@ -188,6 +198,8 @@ AST* parser_parse_statement();
 AST* parser_parse_var_assignment();
 AST* parser_parse_if_statement();
 AST* parser_parse_for_statement();
+AST* parser_parse_while_statement();
+
 AST* parser_parse_output_statment();
 AST* parser_parse_block();
 
@@ -217,7 +229,7 @@ AST* parser_parse() {
     AST* ast = malloc(sizeof(AST));
     ast->type = Program;
     while (Ltokens.tokens[tokenIdx].type != Eof) {
-        if(peak(VarDeclaration) ||  peak(Token_If_Keyword) || peak(Token_Output) || peak(Token_For_keyword)) {
+        if(peak(VarDeclaration) ||  peak(Token_If_Keyword) || peak(Token_Output) || peak(Token_For_keyword) || peak(Token_While_keyword)) {
             astElem_append(&ast->as.program.body,parser_parse_statement());
         } else {
             astElem_append(&ast->as.program.body,parser_parse_var_assignment());
@@ -255,7 +267,10 @@ AST* parser_parse_statement() {
         return parser_parse_output_statment();
     } else if (peak(Token_For_keyword)) {
         return parser_parse_for_statement();
-    }    
+    } else if (peak(Token_While_keyword)) {
+        return parser_parse_while_statement();
+        
+    } 
     
     
     assert(0 && "Unreachable in `parser_parse_statement`");
@@ -267,7 +282,7 @@ AST* parser_parse_block() {
 
     block->type = BlockExpr;
     while(!peak(Token_CsqrPra)) {
-        if(peak(VarDeclaration) ||  peak(Token_If_Keyword) || peak(Token_Output) || peak(Token_For_keyword)) {
+        if(peak(VarDeclaration) ||  peak(Token_If_Keyword) || peak(Token_Output) || peak(Token_For_keyword) || peak(Token_While_keyword)) {
             astElem_append(&block->as.block.body,parser_parse_statement());
         } else {
             astElem_append(&block->as.block.body,parser_parse_var_assignment());
@@ -283,7 +298,7 @@ AST* parser_parse_for_statement() {
     AST* output = malloc(sizeof(AST));
     output->type = ForStatement;
     expect(Opara);
-        output->as.forStatement.start = parser_parse_primary();
+        output->as.forStatement.start = parser_parse_var_assignment();
         expect(Token_Range);
         output->as.forStatement.end = parser_parse_var_assignment();
     expect(Cpara);
@@ -294,6 +309,24 @@ AST* parser_parse_for_statement() {
     return output;
     
 }
+
+
+AST* parser_parse_while_statement() { 
+    tokenIdx++;
+    AST* output = malloc(sizeof(AST));
+    output->type = WhileStatement;
+    
+    expect(Opara);
+        output->as.whileStatement.cond = parser_parse_boolean_expr();
+    expect(Cpara);
+    
+    expect(Token_OsqrPra);
+        output->as.whileStatement.block = parser_parse_block();
+    expect(Token_CsqrPra);
+
+    return output;
+}
+
 AST* parser_parse_output_statment() { 
     tokenIdx++;
     AST* output = malloc(sizeof(AST));
