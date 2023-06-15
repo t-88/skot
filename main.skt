@@ -6,10 +6,6 @@ if(a == 1) {
     a = 69;
     output(a);
 } 
-else if (a == 3) {
-    a = "Ur Mom!";
-    output(a);
-} 
 else {
     a = 96;
     output(a);
