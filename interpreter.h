@@ -13,6 +13,7 @@ RunTimeValue interpreter_eval_program(AST* ast,Env* env);
 RunTimeValue interpreter_eval_var_declaration(AST* ast,Env* env); 
 RunTimeValue interpreter_eval_if_statment(AST* ast,Env* env); 
 RunTimeValue interpreter_eval_boolean_expr(AST* ast,Env* env); 
+RunTimeValue interpreter_eval_for_statment(AST* ast,Env* env); 
 
 
 RunTimeValue interpreter_eval_program(AST* ast,Env* env) { 
@@ -151,6 +152,18 @@ RunTimeValue interpreter_eval_output_statment(AST* ast,Env* env) {
     runtime_print(interpreter_eval(ast->as.outputStatment.expr,env));
     return (RunTimeValue) {.as.number = 0, .type = Noth};
 }
+RunTimeValue interpreter_eval_for_statment(AST* ast,Env* env) {  
+    RunTimeValue start = interpreter_eval(ast->as.forStatement.start,env);
+    RunTimeValue end = interpreter_eval(ast->as.forStatement.end,env);
+    for (double i = start.as.number; i < end.as.number; i++) {
+        interpreter_eval(ast->as.forStatement.block,env);
+    }
+    return (RunTimeValue) {.as.number = 0, .type = Noth};
+}
+
+
+
+
 RunTimeValue interpreter_eval(AST* ast,Env* env) {
     switch (ast->type)
     {
@@ -189,6 +202,9 @@ RunTimeValue interpreter_eval(AST* ast,Env* env) {
         break;        
         case OutputStatment:
             return interpreter_eval_output_statment(ast,env);
+        break;           
+        case ForStatement:
+            return interpreter_eval_for_statment(ast,env);
         break;           
         default:
             assert(0 && "Unreachable `interpreter_eval`");

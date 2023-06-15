@@ -21,6 +21,7 @@ typedef  struct AST {
         VarAssignmentExpr,
         BlockExpr,
         OutputStatment,
+        ForStatement,
     } type;
 
     union data{
@@ -51,7 +52,6 @@ typedef  struct AST {
             Str name;
             AST* value;
         } varDeclaration;        
-
         struct identifierLiteral{
             Str name;
             AST* value;
@@ -66,6 +66,11 @@ typedef  struct AST {
             AST_Elem* else_if_blocks;
             AST* else_block;
         } ifStatement;    
+        struct forStatement{
+            AST* start;
+            AST* end;
+            AST* block;
+        } forStatement;            
         struct outputStatment{
             AST* expr;
         } outputStatment;                 
@@ -157,6 +162,12 @@ void ast_print(AST* ast,int depth) {
                 currInBlock = currInBlock->next;
             }
         break;
+        case ForStatement:
+            printf("%*sForStatement:\n",depth,"");
+            ast_print(ast->as.forStatement.start,depth + 1);
+            ast_print(ast->as.forStatement.end,depth + 1);
+            ast_print(ast->as.forStatement.block,depth + 1);
+        break;        
         case OutputStatment:
             printf("%*sOutputStatment:\n",depth,"");
             ast_print(ast->as.outputStatment.expr,depth + 1);
@@ -176,8 +187,9 @@ AST* parser_parse_var_declaration();
 AST* parser_parse_statement();
 AST* parser_parse_var_assignment();
 AST* parser_parse_if_statement();
+AST* parser_parse_for_statement();
 AST* parser_parse_output_statment();
-AST* parser_block();
+AST* parser_parse_block();
 
 
 bool peak(TokenType tkn_type) {
@@ -191,8 +203,11 @@ Token expect(TokenType type) {
     if(Ltokens.tokens[tokenIdx].type == type) {
         return Ltokens.tokens[tokenIdx++];
     }
-    printf("[Error] Expected %d token got",type);
+    printf("[Error] Expected:");
+    token_print((Token){.type=type});
+    printf("        Got: ");
     token_print(Ltokens.tokens[tokenIdx]);
+
     exit(1);
 }
 
@@ -202,7 +217,7 @@ AST* parser_parse() {
     AST* ast = malloc(sizeof(AST));
     ast->type = Program;
     while (Ltokens.tokens[tokenIdx].type != Eof) {
-        if(peak(VarDeclaration) ||  peak(Token_If_Keyword) || peak(Token_Output)) {
+        if(peak(VarDeclaration) ||  peak(Token_If_Keyword) || peak(Token_Output) || peak(Token_For_keyword)) {
             astElem_append(&ast->as.program.body,parser_parse_statement());
         } else {
             astElem_append(&ast->as.program.body,parser_parse_var_assignment());
@@ -236,23 +251,23 @@ AST* parser_parse_statement() {
         return parser_parse_var_declaration();
     } else if (peak(Token_If_Keyword)) {
         return parser_parse_if_statement();
-        
     } else if (peak(Token_Output)) {
-
         return parser_parse_output_statment();
-    }
+    } else if (peak(Token_For_keyword)) {
+        return parser_parse_for_statement();
+    }    
     
     
     assert(0 && "Unreachable in `parser_parse_statement`");
     return NULL; 
 }
 
-AST* parser_block() { 
+AST* parser_parse_block() { 
     AST* block = malloc(sizeof(AST));
 
     block->type = BlockExpr;
     while(!peak(Token_CsqrPra)) {
-        if(peak(VarDeclaration) ||  peak(Token_If_Keyword) || peak(Token_Output)) {
+        if(peak(VarDeclaration) ||  peak(Token_If_Keyword) || peak(Token_Output) || peak(Token_For_keyword)) {
             astElem_append(&block->as.block.body,parser_parse_statement());
         } else {
             astElem_append(&block->as.block.body,parser_parse_var_assignment());
@@ -260,6 +275,24 @@ AST* parser_block() {
         }
     }
     return block;
+}
+
+
+AST* parser_parse_for_statement() { 
+    tokenIdx++;
+    AST* output = malloc(sizeof(AST));
+    output->type = ForStatement;
+    expect(Opara);
+        output->as.forStatement.start = parser_parse_primary();
+        expect(Token_Range);
+        output->as.forStatement.end = parser_parse_var_assignment();
+    expect(Cpara);
+    expect(Token_OsqrPra);
+        output->as.forStatement.block = parser_parse_block();
+    expect(Token_CsqrPra);
+
+    return output;
+    
 }
 AST* parser_parse_output_statment() { 
     tokenIdx++;
@@ -271,8 +304,6 @@ AST* parser_parse_output_statment() {
     expect(SemiColon);
     return output;
 } 
-
-
 AST* parser_parse_if_statement() { 
     tokenIdx++;
     AST* ifSta = malloc(sizeof(AST));
@@ -283,7 +314,7 @@ AST* parser_parse_if_statement() {
         ifSta->as.ifStatement.cond = parser_parse_boolean_expr();
     expect(Cpara);
     expect(Token_OsqrPra);
-        ifSta->as.ifStatement.if_block = parser_block();
+        ifSta->as.ifStatement.if_block = parser_parse_block();
     expect(Token_CsqrPra);
     
     while(peak(Token_Else_Keyword) && peakNext(Token_If_Keyword)) {
@@ -296,7 +327,7 @@ AST* parser_parse_if_statement() {
             elseIfSta->as.ifStatement.cond = parser_parse_boolean_expr();
         expect(Cpara);
         expect(Token_OsqrPra);
-            elseIfSta->as.ifStatement.if_block = parser_block();
+            elseIfSta->as.ifStatement.if_block = parser_parse_block();
         expect(Token_CsqrPra);
         astElem_append(&ifSta->as.ifStatement.else_if_blocks,elseIfSta);
     }
@@ -304,12 +335,11 @@ AST* parser_parse_if_statement() {
         tokenIdx++;
         printf("asdasd\n");
         expect(Token_OsqrPra);
-            ifSta->as.ifStatement.else_block = parser_block();
+            ifSta->as.ifStatement.else_block = parser_parse_block();
         expect(Token_CsqrPra);
     }
     return ifSta;
 } 
-
 AST* parser_parse_var_declaration() { 
     tokenIdx++;
     AST* varDec = malloc(sizeof(AST));
@@ -326,8 +356,6 @@ AST* parser_parse_var_declaration() {
     expect(SemiColon);
     return varDec;
 }
-
-
 AST* parser_parse_boolean_expr() { 
     AST* lhs = parser_parse_additive();
     if(Ltokens.tokens[tokenIdx].type == Token_Comparation) {
@@ -345,7 +373,6 @@ AST* parser_parse_boolean_expr() {
     }
     return lhs;
 }
-
 AST* parser_parse_para() {
     if(tokenIdx < Ltokens.count && (*Ltokens.tokens[tokenIdx].val.str == '(')) { 
         tokenIdx++;

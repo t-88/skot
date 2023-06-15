@@ -36,6 +36,8 @@ typedef enum TokenType {
     Token_OsqrPra,
     Token_CsqrPra,
     Token_Output,
+    Token_Range,
+    Token_For_keyword
 } TokenType;
 
 
@@ -71,6 +73,9 @@ void token_print(Token tkn) {
         case Token_OsqrPra: printf("Token_OsqrPra"); break;            
         case Token_CsqrPra: printf("Token_CsqrPra"); break;            
         case Token_Output: printf("Token_Output"); break;            
+        case Token_For_keyword: printf("Token_For_keyword"); break;            
+        
+        case Token_Range: printf("Token_Range"); break;            
         default: assert(0 && "Unreachable in `token_print`");
     }
     printf(" ");
@@ -126,8 +131,15 @@ void lexer_init(char* file_path) {
     pphat_insert(&reserved_keywords,"let",VarDeclaration);
     pphat_insert(&reserved_keywords,"if",Token_If_Keyword);
     pphat_insert(&reserved_keywords,"else",Token_Else_Keyword);
+    pphat_insert(&reserved_keywords,"for",Token_For_keyword);
     pphat_insert(&reserved_keywords,"output",Token_Output);
+    
 }
+
+static bool peak_file(int curr,char chr) {
+    return lexed_file[curr] == chr;
+}
+
 
 // TODO: when checking [curr+1] we may fall in syntax err or end of file
 // implement matclex_tokens...
@@ -137,13 +149,17 @@ LexerTokens lexer_lex() {
     int curr = -1;
     while(++curr != file_size) {
         // printf("%.*s %d %lu\n" ,1,lexed_file + curr,curr,file_size);
-        if(isspace(lexed_file[curr]) || lexed_file[curr] == '\n' || lexed_file[curr] == '\t') {}
-        else if(lexed_file[curr] == '/' && lexed_file[curr + 1] == '/')  { 
+        if(isspace(lexed_file[curr]) || peak_file(curr,'\n') || peak_file(curr,'\t')) {}
+        else if(peak_file(curr,'/') && lexed_file[curr + 1] == '/')  { 
             curr += 2;
-            while(lexed_file[curr] != '\n') 
+            while(!peak_file(curr,'\n')) 
                 curr++;
         }
-        else if(lexed_file[curr] == '=')  { 
+        else if(peak_file(curr,'.') && peak_file(curr+1,'.') )  { 
+            lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Token_Range,lexed_file + curr,2);
+            curr++;
+        }
+        else if(peak_file(curr,'='))  { 
                 if(lexed_file[curr + 1] == '=')  { 
                     lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Token_Comparation,lexed_file + curr,2);
                     curr++;
@@ -152,7 +168,7 @@ LexerTokens lexer_lex() {
                     lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Equal,lexed_file + curr,1);
                 }
         }
-        else if(lexed_file[curr] == '<' || lexed_file[curr] == '>')  {
+        else if(peak_file(curr,'<') || peak_file(curr,'>'))  {
             if(lexed_file[curr + 1] == '=') {
                 lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Token_Comparation,lexed_file + curr,2);
                 curr++;
@@ -160,10 +176,10 @@ LexerTokens lexer_lex() {
                 lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Token_Comparation,lexed_file + curr,1);
             }
         } 
-        else if(lexed_file[curr] == ';')  {
+        else if(peak_file(curr,';'))  {
             lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(SemiColon,lexed_file + curr,1);
         }
-        else if(lexed_file[curr] == '"') 
+        else if(peak_file(curr,'"')) 
         {
             curr++;
             int start = curr;
@@ -171,19 +187,19 @@ LexerTokens lexer_lex() {
                 curr++;
             lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(StringVal,lexed_file + start,curr - start);
         } 
-        else if(lexed_file[curr] == '{') {
+        else if(peak_file(curr,'{')) {
             lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Token_OsqrPra,lexed_file + curr,1);
         }
-        else if(lexed_file[curr] == '}') {
+        else if(peak_file(curr,'}')) {
             lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Token_CsqrPra,lexed_file + curr,1);
         }
-        else if(lexed_file[curr] == '(') {
+        else if(peak_file(curr,'(')) {
             lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Opara,lexed_file + curr,1);
         }
-        else if(lexed_file[curr] == ')') {
+        else if(peak_file(curr,')')) {
             lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Cpara,lexed_file + curr,1);
         }
-        else if(lexed_file[curr] == '+' || lexed_file[curr] == '-' || lexed_file[curr] == '*' || lexed_file[curr] == '/' || lexed_file[curr] == '|' || lexed_file[curr] == '^' || lexed_file[curr] == '&' || lexed_file[curr] == '%' ) 
+        else if(peak_file(curr,'+') || peak_file(curr,'-') || peak_file(curr,'*') || peak_file(curr,'/') || peak_file(curr,'|') || peak_file(curr,'^') || peak_file(curr,'&') || peak_file(curr,'%') ) 
         {
             lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(BinaryOp,lexed_file + curr,1);
         } 
@@ -215,7 +231,6 @@ LexerTokens lexer_lex() {
             printf("`%.*s` in %d\n",1,lexed_file + curr ,curr);
             assert(0 && "[Error] char not recognized");
         }
-
     }
     lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Eof,"eof",3);
 
