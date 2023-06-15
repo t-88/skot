@@ -34,7 +34,9 @@ void  runtime_print(RunTimeValue runtime) {
         case BooleanValue:
            	printf("%s\n",runtime.as.boolean == 1 ? "True" : "False" );
         break;
-
+        case Noth:
+           	printf("NIL \n" );
+        break;
     default:
         assert(0 && "[Error] Unreachable `runtime_print`");
         break;

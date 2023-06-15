@@ -31,6 +31,11 @@ typedef enum TokenType {
     SemiColon,
     Token_Comparation,
     Eof,
+    Token_If_Keyword,
+    Token_Else_Keyword,
+    Token_OsqrPra,
+    Token_CsqrPra,
+    Token_Output,
 } TokenType;
 
 
@@ -50,8 +55,8 @@ typedef struct {
 void token_print(Token tkn) {
     printf("Token: ");
     switch (tkn.type) {
-    case NumberVal:printf("NumberVal");break;
-        case Identifier:printf("Identifier");break;    
+        case NumberVal:printf("NumberVal");break;
+        case Identifier:printf("Identifier");break; 
         case Equal:printf("Equal");break;   
         case BinaryOp:printf("BinaryOp");break;            
         case StringVal:printf("StringVal");break;            
@@ -61,6 +66,11 @@ void token_print(Token tkn) {
         case SemiColon: printf("SemiColon"); break;            
         case Token_Comparation: printf("Token_Comparation"); break;            
         case Eof: printf("Eof"); break;            
+        case Token_If_Keyword: printf("Token_If_Keyword"); break;            
+        case Token_Else_Keyword: printf("Token_Else_Keyword"); break;            
+        case Token_OsqrPra: printf("Token_OsqrPra"); break;            
+        case Token_CsqrPra: printf("Token_CsqrPra"); break;            
+        case Token_Output: printf("Token_Output"); break;            
         default: assert(0 && "Unreachable in `token_print`");
     }
     printf(" ");
@@ -114,8 +124,13 @@ void lexer_init(char* file_path) {
     lexed_file = file_path;
     reserved_keywords = pphat_create();
     pphat_insert(&reserved_keywords,"let",VarDeclaration);
+    pphat_insert(&reserved_keywords,"if",Token_If_Keyword);
+    pphat_insert(&reserved_keywords,"else",Token_Else_Keyword);
+    pphat_insert(&reserved_keywords,"output",Token_Output);
 }
 
+// TODO: when checking [curr+1] we may fall in syntax err or end of file
+// implement matclex_tokens...
 LexerTokens lexer_lex() {
     LexerTokens lex_tokens = {0};
     lex_tokens.tokens = malloc(sizeof(Token) * NUM_OF_TOKENS); 
@@ -123,15 +138,25 @@ LexerTokens lexer_lex() {
     while(++curr != file_size) {
         // printf("%.*s %d %lu\n" ,1,lexed_file + curr,curr,file_size);
         if(isspace(lexed_file[curr]) || lexed_file[curr] == '\n' || lexed_file[curr] == '\t') {}
+        else if(lexed_file[curr] == '/' && lexed_file[curr + 1] == '/')  { 
+            curr += 2;
+            while(lexed_file[curr] != '\n') 
+                curr++;
+        }
         else if(lexed_file[curr] == '=')  { 
-                lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Equal,lexed_file + curr,1);
+                if(lexed_file[curr + 1] == '=')  { 
+                    lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Token_Comparation,lexed_file + curr,2);
+                    curr++;
+                }
+                else {
+                    lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Equal,lexed_file + curr,1);
+                }
         }
         else if(lexed_file[curr] == '<' || lexed_file[curr] == '>')  {
             if(lexed_file[curr + 1] == '=') {
                 lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Token_Comparation,lexed_file + curr,2);
                 curr++;
             } else {
-
                 lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Token_Comparation,lexed_file + curr,1);
             }
         } 
@@ -145,8 +170,13 @@ LexerTokens lexer_lex() {
             while(lexed_file[curr] != 0 && lexed_file[curr] != '"')
                 curr++;
             lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(StringVal,lexed_file + start,curr - start);
-            curr--;
         } 
+        else if(lexed_file[curr] == '{') {
+            lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Token_OsqrPra,lexed_file + curr,1);
+        }
+        else if(lexed_file[curr] == '}') {
+            lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Token_CsqrPra,lexed_file + curr,1);
+        }
         else if(lexed_file[curr] == '(') {
             lex_tokens.tokens[lex_tokens.count++] = MK_TOKEN(Opara,lexed_file + curr,1);
         }
@@ -169,7 +199,6 @@ LexerTokens lexer_lex() {
             if(fromTable == 0) {
                 lex_tokens.tokens[lex_tokens.count++] = (Token){.type = Identifier,.val = str};
             } else  {
-            printf("%d\n",fromTable);
                 lex_tokens.tokens[lex_tokens.count++] = (Token){.type = fromTable,.val = str};
             }
             curr--;

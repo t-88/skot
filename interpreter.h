@@ -11,6 +11,7 @@
 RunTimeValue interpreter_eval(AST* ast,Env* env);
 RunTimeValue interpreter_eval_program(AST* ast,Env* env); 
 RunTimeValue interpreter_eval_var_declaration(AST* ast,Env* env); 
+RunTimeValue interpreter_eval_if_statment(AST* ast,Env* env); 
 RunTimeValue interpreter_eval_boolean_expr(AST* ast,Env* env); 
 
 
@@ -92,7 +93,6 @@ RunTimeValue interpreter_eval_var_assignment(AST* ast,Env* env) {
     env_assing_variable(env,str_get_charp(ast->as.varDeclaration.name),value);
     return value;
 }
-
 // TODO: Type Check 
 // TODO: && , || 
 RunTimeValue interpreter_eval_boolean_expr(AST* ast,Env* env) {
@@ -100,26 +100,57 @@ RunTimeValue interpreter_eval_boolean_expr(AST* ast,Env* env) {
     RunTimeValue rhs = interpreter_eval(ast->as.binaryExpr.rhs,env);
 
     RunTimeValue out = {0};
-
-        switch (*ast->as.binaryExpr.op.str)
-        {
-	     case '>':
-            return (RunTimeValue) {.type = BooleanValue,.as.boolean = (lhs.as.number > rhs.as.number)};
-            break;
-            case '<' :
-                return (RunTimeValue) {.type = BooleanValue,.as.boolean = (lhs.as.number < rhs.as.number)};
-            break;
-            case '>=' :
-               return (RunTimeValue) {.type = BooleanValue,.as.boolean = (lhs.as.number >= rhs.as.number)};
-            break;
-            case '<=' :
-                return (RunTimeValue) {.type = BooleanValue,.as.boolean = (lhs.as.number <= rhs.as.number)};
-            default:
-                assert(0 && "[Error] Unreachable `interpreter_eval_boolean_expr`");
-            break;  
-        }  
+    const char* op = str_get_charp(ast->as.booleanExpr.op); 
+    if(memcmp(op,">",1)== 0  ) {
+        return (RunTimeValue) {.type = BooleanValue,.as.boolean = (lhs.as.number > rhs.as.number)};
+    }
+    else if(memcmp(op,"<",1) == 0 ) {
+        return (RunTimeValue) {.type = BooleanValue,.as.boolean = (lhs.as.number < rhs.as.number)};
+    }
+    else if(memcmp(op,">=",2) == 0 ) {
+        return (RunTimeValue) {.type = BooleanValue,.as.boolean = (lhs.as.number >= rhs.as.number)};
+    } 
+    else if(memcmp(op,"<=",2) == 0 ) {
+        return (RunTimeValue) {.type = BooleanValue,.as.boolean = (lhs.as.number <= rhs.as.number)};
+    }
+    else if(memcmp(op,"==",2) == 0 ) {
+        return (RunTimeValue) {.type = BooleanValue,.as.boolean = (lhs.as.number == rhs.as.number)};
+    }  
+    else {
+        assert(0 && "[Error] Unreachable `interpreter_eval_boolean_expr`");
+    }
 }
+RunTimeValue interpreter_eval_if_statment(AST* ast,Env* env) {  
+    RunTimeValue value = interpreter_eval(ast->as.ifStatement.cond,env);
+    if(value.as.boolean) {
+        return interpreter_eval(ast->as.ifStatement.if_block,env);
+    }
+    AST_Elem* currIfElseSta = ast->as.ifStatement.else_if_blocks;
+    while(currIfElseSta) {
+        RunTimeValue value = interpreter_eval(currIfElseSta->data->as.ifStatement.cond,env);
+        if(value.as.boolean) {
+            return interpreter_eval(currIfElseSta->data->as.ifStatement.if_block,env);     
+        }
+        currIfElseSta = currIfElseSta->next;
+    }
+    if(ast->as.ifStatement.else_block) {
+        return interpreter_eval(ast->as.ifStatement.else_block,env);
 
+    }
+
+    return (RunTimeValue) {.as.number = 0, .type = Noth};
+}
+RunTimeValue interpreter_eval_block(AST* ast,Env* env) {
+    RunTimeValue lastEval;
+    for(AST_Elem* exp = ast->as.block.body; exp; exp = exp->next) {
+        lastEval = interpreter_eval(exp->data,env);
+    }
+    return lastEval;
+}
+RunTimeValue interpreter_eval_output_statment(AST* ast,Env* env) {  
+    runtime_print(interpreter_eval(ast->as.outputStatment.expr,env));
+    return (RunTimeValue) {.as.number = 0, .type = Noth};
+}
 RunTimeValue interpreter_eval(AST* ast,Env* env) {
     switch (ast->type)
     {
@@ -149,7 +180,16 @@ RunTimeValue interpreter_eval(AST* ast,Env* env) {
         break;      
         case BooleanExp:
             return interpreter_eval_boolean_expr(ast,env);
-        break;             
+        break;          
+        case IfStatement:
+            return interpreter_eval_if_statment(ast,env);
+        break;
+        case BlockExpr:
+            return interpreter_eval_block(ast,env);
+        break;        
+        case OutputStatment:
+            return interpreter_eval_output_statment(ast,env);
+        break;           
         default:
             assert(0 && "Unreachable `interpreter_eval`");
         break;

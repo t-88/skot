@@ -13,11 +13,14 @@ typedef  struct AST {
         Program,
         BinaryExp,
         BooleanExp,
+        IfStatement,
         NumberLiteral,
         StringLiteral,
         VarDeclarationExpr,
         IdentifierLiteral,
         VarAssignmentExpr,
+        BlockExpr,
+        OutputStatment,
     } type;
 
     union data{
@@ -34,6 +37,9 @@ typedef  struct AST {
         struct program {
             AST_Elem* body;
         } program;        
+        struct block {
+            AST_Elem* body;
+        } block;         
         struct numberLiteral{
             Str data;
         } numberLiteral;
@@ -54,6 +60,15 @@ typedef  struct AST {
             Str name;
             AST* value;
         } varAssignment;     
+        struct ifStatement{
+            AST* cond;
+            AST* if_block;
+            AST_Elem* else_if_blocks;
+            AST* else_block;
+        } ifStatement;    
+        struct outputStatment{
+            AST* expr;
+        } outputStatment;                 
     } as;
     
     
@@ -123,7 +138,29 @@ void ast_print(AST* ast,int depth) {
             printf("%*sVarAssignmentExpr:\n",depth,"");
             printf("%*svar: "STR_FMT"\n",depth+1,"",STR_ARG(ast->as.varAssignment.name));
             ast_print(ast->as.varAssignment.value,depth + 1);
-        break;    
+        break;   
+        case IfStatement:
+            printf("%*sIf_Statement:\n",depth,"");
+            ast_print(ast->as.ifStatement.cond,depth + 1);
+            AST_Elem* currInIfElse = ast->as.ifStatement.else_if_blocks;
+            while (currInIfElse) {
+                ast_print(currInIfElse->data,depth + 1);
+                currInIfElse = currInIfElse->next;
+            }
+            ast_print(ast->as.ifStatement.if_block,depth + 1);
+        break;  
+        case BlockExpr:
+            printf("%*sBlockExpr:\n",depth,"");
+            AST_Elem* currInBlock = ast->as.program.body;
+            while (currInBlock) {
+                ast_print(currInBlock->data,depth + 1);
+                currInBlock = currInBlock->next;
+            }
+        break;
+        case OutputStatment:
+            printf("%*sOutputStatment:\n",depth,"");
+            ast_print(ast->as.outputStatment.expr,depth + 1);
+        break;                                
     default:
         assert(0 && "[Error] Unreachable `ast_print`\n");
     }
@@ -136,8 +173,19 @@ AST* parser_parse_additive();
 AST* parser_parse_boolean();
 AST* parser_parse_boolean_expr();
 AST* parser_parse_var_declaration();
+AST* parser_parse_statement();
 AST* parser_parse_var_assignment();
+AST* parser_parse_if_statement();
+AST* parser_parse_output_statment();
+AST* parser_block();
 
+
+bool peak(TokenType tkn_type) {
+    return Ltokens.tokens[tokenIdx].type == tkn_type;
+}
+bool peakNext(TokenType tkn_type) {
+    return Ltokens.tokens[tokenIdx+1].type == tkn_type;
+}
 
 Token expect(TokenType type) {
     if(Ltokens.tokens[tokenIdx].type == type) {
@@ -150,11 +198,12 @@ Token expect(TokenType type) {
 
 
 AST* parser_parse() {
+
     AST* ast = malloc(sizeof(AST));
     ast->type = Program;
     while (Ltokens.tokens[tokenIdx].type != Eof) {
-        if(Ltokens.tokens[tokenIdx].type == VarDeclaration) {
-            astElem_append(&ast->as.program.body,parser_parse_var_declaration());
+        if(peak(VarDeclaration) ||  peak(Token_If_Keyword) || peak(Token_Output)) {
+            astElem_append(&ast->as.program.body,parser_parse_statement());
         } else {
             astElem_append(&ast->as.program.body,parser_parse_var_assignment());
             expect(SemiColon);
@@ -162,6 +211,8 @@ AST* parser_parse() {
     }
     return ast;
 }
+
+
 
 
 AST* parser_parse_var_assignment() {
@@ -178,15 +229,99 @@ AST* parser_parse_var_assignment() {
     }
     return lhs;
 }
+AST* parser_parse_statement() {
+
+
+    if(peak(VarDeclaration)) {
+        return parser_parse_var_declaration();
+    } else if (peak(Token_If_Keyword)) {
+        return parser_parse_if_statement();
+        
+    } else if (peak(Token_Output)) {
+
+        return parser_parse_output_statment();
+    }
+    
+    
+    assert(0 && "Unreachable in `parser_parse_statement`");
+    return NULL; 
+}
+
+AST* parser_block() { 
+    AST* block = malloc(sizeof(AST));
+
+    block->type = BlockExpr;
+    while(!peak(Token_CsqrPra)) {
+        if(peak(VarDeclaration) ||  peak(Token_If_Keyword) || peak(Token_Output)) {
+            astElem_append(&block->as.block.body,parser_parse_statement());
+        } else {
+            astElem_append(&block->as.block.body,parser_parse_var_assignment());
+            expect(SemiColon);
+        }
+    }
+    return block;
+}
+AST* parser_parse_output_statment() { 
+    tokenIdx++;
+    AST* output = malloc(sizeof(AST));
+    output->type = OutputStatment;
+    expect(Opara);
+        output->as.outputStatment.expr = parser_parse_boolean_expr();
+    expect(Cpara);
+    expect(SemiColon);
+    return output;
+} 
+
+
+AST* parser_parse_if_statement() { 
+    tokenIdx++;
+    AST* ifSta = malloc(sizeof(AST));
+    ifSta->type = IfStatement;
+    ifSta->as.ifStatement.else_block = NULL;
+    ifSta->as.ifStatement.else_if_blocks = NULL;
+    expect(Opara);
+        ifSta->as.ifStatement.cond = parser_parse_boolean_expr();
+    expect(Cpara);
+    expect(Token_OsqrPra);
+        ifSta->as.ifStatement.if_block = parser_block();
+    expect(Token_CsqrPra);
+    
+    while(peak(Token_Else_Keyword) && peakNext(Token_If_Keyword)) {
+        tokenIdx+=2;
+        AST* elseIfSta = malloc(sizeof(AST));
+        elseIfSta->type = IfStatement;
+        elseIfSta->as.ifStatement.else_block = NULL;
+        elseIfSta->as.ifStatement.else_if_blocks = NULL;
+        expect(Opara);
+            elseIfSta->as.ifStatement.cond = parser_parse_boolean_expr();
+        expect(Cpara);
+        expect(Token_OsqrPra);
+            elseIfSta->as.ifStatement.if_block = parser_block();
+        expect(Token_CsqrPra);
+        astElem_append(&ifSta->as.ifStatement.else_if_blocks,elseIfSta);
+    }
+    if(peak(Token_Else_Keyword)) {
+        tokenIdx++;
+        printf("asdasd\n");
+        expect(Token_OsqrPra);
+            ifSta->as.ifStatement.else_block = parser_block();
+        expect(Token_CsqrPra);
+    }
+    return ifSta;
+} 
+
 AST* parser_parse_var_declaration() { 
     tokenIdx++;
-    Str varName = expect(Identifier).val;
+    AST* varDec = malloc(sizeof(AST));
+
+
+    varDec->type = VarDeclarationExpr;
+    varDec->as.varDeclaration.name = expect(Identifier).val;
+
     expect(Equal);
+
     AST* rhs = parser_parse_additive();
 
-    AST* varDec = malloc(sizeof(AST));
-    varDec->type = VarDeclarationExpr;
-    varDec->as.varDeclaration.name = varName;
     varDec->as.varDeclaration.value = rhs;
     expect(SemiColon);
     return varDec;
@@ -246,7 +381,7 @@ AST* parser_parse_additive() {
     if(tokenIdx < Ltokens.count && (*Ltokens.tokens[tokenIdx].val.str == '+' || *Ltokens.tokens[tokenIdx].val.str == '-')) {
         Str op = Ltokens.tokens[tokenIdx].val;
         tokenIdx++;
-        AST* rhs = parser_parse_boolean();
+        AST* rhs = parser_parse_additive();
 
 
         AST* ast = malloc(sizeof(AST));
@@ -278,7 +413,6 @@ AST* parser_parse_multiplicative() {
 
     return lhs;
 }
-
 AST* parser_parse_primary() {
     Token tkn = Ltokens.tokens[tokenIdx]; 
     tokenIdx++;

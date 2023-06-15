@@ -18,7 +18,6 @@
 
 
 
-
 int main(void) {
     lexer_init("main.skt");
     char * file = lexer_read_file();
@@ -42,15 +41,15 @@ int main(void) {
     ast_print(program,0);
     printf("---------------------------- \n");
 
-    printf("Programe Output: \n");
+    printf("Program Output: \n");
     printf("============================ \n");
-        runtime_print(interpreter_eval(program,&globaEnv));
+        interpreter_eval(program,&globaEnv);
     printf("============================ \n");
 
-    printf("Global variables: \n");
-    printf("---------------------------- \n");
-    pphat_print_runtime(globaEnv.vars);
-    printf("---------------------------- \n");
+    // printf("Global variables: \n");
+    // printf("---------------------------- \n");
+    // pphat_print_runtime(globaEnv.vars);
+    // printf("---------------------------- \n");
 
     return 0;
 }
